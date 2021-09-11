@@ -28,7 +28,7 @@ class ValueInputOption(Enum):
     USER_ENTERED = 2
 
 
-DataRow = List[int, float, str]
+DataRow = List[Union[int, float, str]]
 DataRows = List[DataRow]
 
 
@@ -37,10 +37,12 @@ class InputWorksheet:
     """
     def __init__(self, worksheet: gspread.models.Worksheet) -> None:
         self._base_ws = worksheet
-        self._raw_values = worksheet.get_all_values(
-            value_render_option=ValueRenderOption.UNFORMATTED_VALUE.name)[4:]
-        self._values = worksheet.get_all_values(
-            value_render_option=ValueRenderOption.FORMATTED_VALUE)[4:]
+        self._raw_values_full = worksheet.get_all_values(
+            value_render_option=ValueRenderOption.UNFORMATTED_VALUE.name)
+        self._raw_values = self._raw_values_full[4:]
+        self._values_full = worksheet.get_all_values(
+            value_render_option=ValueRenderOption.FORMATTED_VALUE.name)
+        self._values = self._values_full[4:]
         self._colmap = self._get_colmap()
         self._summary_col_numbers = [
             self.colmap["ordinal"],
@@ -52,6 +54,7 @@ class InputWorksheet:
             self.colmap["incomings"],
             self.colmap["date"],
             self.colmap["percentage"],
+            self.colmap["share"],
         ]
         self._summary_values, self._parents_summary_values = self._get_summary_values()
 
@@ -78,7 +81,7 @@ class InputWorksheet:
             "share": 26,
         }
         """
-        row = self._raw_values[1]
+        row = self._raw_values_full[1]
         key = "gdzie"
         key_col_nr = next((i for i, v in enumerate(row, start=1) if v == key), None)
         if key_col_nr is None:
@@ -96,44 +99,43 @@ class InputWorksheet:
             "incomings": key_col_nr + 4,
             "date": key_col_nr + 5,
             "percentage": key_col_nr + 7,
-            "share": key_col_nr + 8,  # this column is added to input after calculation
+            "share": key_col_nr + 9,  # this column is added to input after calculation
         }
         return colmap
 
     def _get_summary_values(self) -> Tuple[DataRows, DataRows]:
+        # replace raw value date with formatted value date
+        summary_values = []
+        for index, row in enumerate(self._raw_values):
+            new_row = []
+            for i, value in enumerate(row, start=1):
+                if i == self.colmap["date"]:
+                    value = self._values[index][self.colmap["date"] - 1]
+                new_row.append(value)
+            summary_values.append(new_row)
+
         # filter out data rows irrelevant for summary
-        summary_values = [[v for i, v in enumerate(row, start=1)
-                           if v[self.colmap["ordinal"] - 1] and v[self.colmap["amount"] - 1]
-                           and v[self.colmap["what_category"] - 1] != "transfer"
-                           and "rozliczenie" not in v[self.colmap["incomings"] - 1]
-                           and v[self.colmap["percentage"] - 1]] for row in self._raw_values]
+        summary_values = [row for row in summary_values
+                          if row[self.colmap["ordinal"] - 1] and row[self.colmap["amount"] - 1]
+                          and row[self.colmap["what_category"] - 1] != "transfer"
+                          and "rozliczenie" not in row[self.colmap["incomings"] - 1]
+                          and row[self.colmap["percentage"] - 1]]
+
+        # calculate and add 'share' data column
+        for row in summary_values:
+            amount = row[self.colmap["amount"] - 1]
+            percentage = row[self.colmap["percentage"] - 1]
+            row.append(amount * percentage / 100)
 
         # filter out data columns irrelevant for summary
         summary_values = [[v for i, v in enumerate(row, start=1)
                            if i in self.summary_col_numbers] for row in summary_values]
 
-        # replace raw value date with formatted value date
-        new_summary_values = []
-        for row in summary_values:
-            new_row = []
-            for i, value in enumerate(row, start=1):
-                if i == self.colmap["date"]:
-                    value = self._values[self.colmap["date"] - 1]
-                new_row.append(value)
-            new_summary_values.append(new_row)
-
-        summary_values = new_summary_values
-
-        # calculate and add 'share' data column
-        summary_values = [[v for v in row] +
-                          [row[self.colmap["amount"] - 1] * row[self.colmap["percentage"]] / 100]
-                          for row in summary_values]
-
         # divide data into summary_values and parents_summary_values
-        summary_values = [row for row in summary_values
-                          if not row[self.colmap["ordinal"] - 1].startswith("R")]
         parents_summary_values = [row for row in summary_values
                                   if row[self.colmap["ordinal"] - 1].startswith("R")]
+        summary_values = [row for row in summary_values
+                          if not row[self.colmap["ordinal"] - 1].startswith("R")]
         return summary_values, parents_summary_values
 
     @property
