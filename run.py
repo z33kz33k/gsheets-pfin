@@ -2,7 +2,7 @@
 
     run.py
     ~~~~~~
-    Run the script.
+    Run the script for debugging and testing.
 
     @author: z33k
 

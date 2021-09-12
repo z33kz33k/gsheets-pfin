@@ -7,15 +7,18 @@
     @author: z33k
 
 """
-from typing import Dict, List, Tuple, Union
+from enum import Enum
+import sys
+from typing import Dict, List, Optional, Tuple, Union
 
 import gspread
 from gspread_formatting import CellFormat, Color, ColorStyle, NumberFormat, Padding, TextFormat, \
-    format_cell_range, batch_updater
-from enum import Enum
+    format_cell_range
 
 
 CREDS_FILE = "pfin_service_account.json"
+SPREADSHEET_NAME = "pfin_2021"
+OUTPUT_WORKSHEET_NAME = "template"
 
 
 class ValueRenderOption(Enum):
@@ -104,7 +107,7 @@ class InputWorksheet:
             "date": key_col_nr + 5,
             "separator": key_col_nr + 6,
             "percentage": key_col_nr + 7,
-            "share": key_col_nr + 9,  # this column is added to input after calculation
+            "share": key_col_nr + 9,  # this column gets updated after re-calculation
         }
         return colmap
 
@@ -171,13 +174,13 @@ class InputWorksheet:
         return self._parents_summary_values
 
 
-def input_data(spreadsheet_name: str,
-               worksheet_name: str, verbose=False) -> Tuple[DataRows, DataRows]:
+def input_data(worksheet_name: str, spreadsheet_name: str = SPREADSHEET_NAME,
+               verbose=False) -> Tuple[DataRows, DataRows, gspread.Spreadsheet]:
     gc = gspread.service_account(filename=CREDS_FILE)
     ss = gc.open(spreadsheet_name)
     ws = ss.worksheet(worksheet_name)
     ws = InputWorksheet(ws, verbose=verbose)
-    return ws.summary_values, ws.parents_summary_values
+    return ws.summary_values, ws.parents_summary_values, ss
 
 
 class OutputWorksheet:
@@ -284,3 +287,32 @@ class OutputWorksheet:
 
     def duplicate(self, sheetname: str) -> None:
         self._base_ws.duplicate(self._base_ws.id, new_sheet_name=sheetname)
+
+
+def main(input_worksheet: str,
+         spreadsheet: str = SPREADSHEET_NAME,
+         output_worksheet: str = OUTPUT_WORKSHEET_NAME,
+         final_output_worksheet: Optional[str] = None) -> None:
+    sv, psv, ss = input_data(input_worksheet, spreadsheet, verbose=True)
+    output_worksheet = ss.worksheet(output_worksheet)
+    ows = OutputWorksheet(output_worksheet, sv, psv, verbose=True)
+    ows.upload_data()
+    if final_output_worksheet:
+        ows.duplicate(final_output_worksheet)
+
+
+if __name__ == '__main__':
+    if len(sys.argv) == 2:
+        main(sys.argv[1])
+    elif len(sys.argv) == 3:
+        main(sys.argv[1], sys.argv[2])
+    elif len(sys.argv) == 4:
+        main(sys.argv[1], sys.argv[2], sys.argv[3])
+    elif len(sys.argv) == 5:
+        main(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])
+    else:
+        raise ValueError("The script can only be run with arguments: 1) input worksheet name, "
+                         "2) spreadsheet name, 3) output worksheet name, 4) final output worksheet "
+                         "name. Only the first argument is mandatory.")
+
+
