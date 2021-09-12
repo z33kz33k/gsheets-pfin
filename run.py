@@ -2,7 +2,7 @@
 
     run.py
     ~~~~~~
-    Test Google Sheets
+    Run the script.
 
     @author: z33k
 
