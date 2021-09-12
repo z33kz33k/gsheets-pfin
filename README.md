@@ -1,5 +1,5 @@
 # gsheets-pfin
-Automating my personal finance with Google Sheets.
+Automating my personal finance with Python and Google Sheets.
 
 ### Usage
 
