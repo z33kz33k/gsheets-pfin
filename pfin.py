@@ -130,13 +130,14 @@ class InputWorksheet:
         if self.verbose:
             print("Filtering out data rows irrevelant for the summary completed.")
 
-        # calculate and add 'share' data column
+        # re-calculate 'share' data column
         for row in summary_values:
             amount = row[self.colmap["amount"] - 1]
             percentage = row[self.colmap["percentage"] - 1]
-            row.append(amount * percentage / 100)
+            share = amount * percentage / 100
+            row[self.colmap["share"] - 1] = share
         if self.verbose:
-            print("Calculating and adding 'share' data column completed.")
+            print("Re-calculating 'share' data column completed.")
 
         # filter out data columns irrelevant for summary
         summary_values = [[v for i, v in enumerate(row, start=1)
@@ -183,7 +184,7 @@ class OutputWorksheet:
     """Wrapper of output gspread's Worksheet object for easy data upload and manipulation.
     """
     FIRST_DATAROW = 3
-    DATA_COL, PERCENT_COL, RESULT_COL = "H", "J", "K"
+    DATE_COL, PERCENT_COL, RESULT_COL = "H", "J", "K"
     FIRST_PERCENT_CELL = f"{PERCENT_COL}{FIRST_DATAROW}"
     PERCENT_FORMAT = CellFormat(
         backgroundColor=Color(1, 1, 1),
@@ -206,7 +207,7 @@ class OutputWorksheet:
         verticalAlignment="BOTTOM",
         wrapStrategy="WRAP"
     )
-    DATA_FORMAT = CellFormat(
+    DATE_FORMAT = CellFormat(
         backgroundColor=Color(1, 1, 1),
         backgroundColorStyle=ColorStyle(rgbColor=Color(1, 1, 1)),
         horizontalAlignment="RIGHT",
@@ -254,10 +255,10 @@ class OutputWorksheet:
         percent_cell_range = f"{first_percent_cell}{end_percent_cell}"  # ex. "J3:J36"
         format_cell_range(self._base_ws, percent_cell_range, self.PERCENT_FORMAT)
         format_cell_range(self._base_ws,
-                          percent_cell_range.replace(self.PERCENT_COL, self.DATA_COL),
-                          self.DATA_FORMAT)
+                          percent_cell_range.replace(self.PERCENT_COL, self.DATE_COL),
+                          self.DATE_FORMAT)
         if self.verbose:
-            print("Correction of Percentage and Data formatting completed.")
+            print("Correction of Percentage and Date columns' formatting completed.")
 
         # delete the empty trailing row
         self._base_ws.delete_rows(end_range_row + 1)
@@ -277,7 +278,10 @@ class OutputWorksheet:
             print("Updating the result cell's formula completed.")
 
     def upload_data(self) -> None:
-        self._upload_values(self._summary_values, self.FIRST_DATAROW)
+        self._upload_values(self.summary_values, self.FIRST_DATAROW)
+        first_parents_row = self.FIRST_DATAROW + len(self.summary_values) + 2
+        self._upload_values(self.parents_summary_values, first_parents_row)
+
         # # 1) UPLOADING SUMMARY VALUES
         # if self.verbose:
         #     print("Commencing summary values upload.")
