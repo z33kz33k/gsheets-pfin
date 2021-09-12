@@ -172,11 +172,11 @@ class InputWorksheet:
 
 
 def input_data(spreadsheet_name: str,
-               worksheet_name: str) -> Tuple[DataRows, DataRows]:
+               worksheet_name: str, verbose=False) -> Tuple[DataRows, DataRows]:
     gc = gspread.service_account(filename=CREDS_FILE)
     ss = gc.open(spreadsheet_name)
     ws = ss.worksheet(worksheet_name)
-    ws = InputWorksheet(ws)
+    ws = InputWorksheet(ws, verbose=verbose)
     return ws.summary_values, ws.parents_summary_values
 
 
@@ -282,51 +282,5 @@ class OutputWorksheet:
         first_parents_row = self.FIRST_DATAROW + len(self.summary_values) + 2
         self._upload_values(self.parents_summary_values, first_parents_row)
 
-        # # 1) UPLOADING SUMMARY VALUES
-        # if self.verbose:
-        #     print("Commencing summary values upload.")
-        # self._base_ws.insert_rows(self.summary_values, row=self.FIRST_DATAROW)
-        #
-        # # correct Percentage and Date columns formatting
-        # end_range_row = self.FIRST_DATAROW + len(self.summary_values) - 1
-        # cell_range = f"{self.FIRST_PERCENT_CELL}:{self.PERCENT_COL}{end_range_row}"  # ex. "J3:J36"
-        # format_cell_range(self._base_ws, cell_range, self.PERCENT_FORMAT)
-        # format_cell_range(self._base_ws, cell_range.replace("J", "H"), self.DATA_FORMAT)
-        # if self.verbose:
-        #     print("Correction of Percentage and Data formatting completed.")
-        #
-        # # delete the empty trailing row
-        # self._base_ws.delete_rows(self.FIRST_DATAROW + len(self.summary_values))
-        # if self.verbose:
-        #     print("Trailing empty row deleted.")
-        #
-        # # update the result's cell formula
-        # result_row = end_range_row + 1
-        # label = f"{self.RESULT_COL}{result_row}"
-        # result_cell = self._base_ws.acell(label)
-        # start_range_lbl = f"{self.RESULT_COL}{self.FIRST_DATAROW}"
-        # end_range_lbl = f"{self.RESULT_COL}{end_range_row}"
-        # result_cell.value = f"=SUM({start_range_lbl}:{end_range_lbl})"
-        # self._base_ws.update_cells([result_cell],
-        #                            value_input_option=ValueInputOption.USER_ENTERED.name)
-        # if self.verbose:
-        #     print("Updating the result cell's formula completed.")
-
-        # # 2) UPLOADING PARENT'S SUMMARY VALUES
-        # first_row = result_row + 1
-        # self._base_ws.insert_rows(self.parents_summary_values, row=first_row)
-        #
-        # # correct Percentage column formatting
-        # cell_range = f"{self.PERCENT_COL}{first_row}:{self.PERCENT_COL}" \
-        #              f"{first_row + len(self.parents_summary_values) - 1}"  # ex. "J3:J36"
-        # format_cell_range(self._base_ws, self.PERCENT_FORMAT, cell_range)
-        #
-        # # delete the empty trailing row
-        # self._base_ws.delete_rows(self.FIRST_DATAROW + len(self.summary_values))
-        #
-        # # update the result's cell formula
-        # result_row = self.FIRST_DATAROW + len(self.summary_values)
-        # label = f"{self.RESULT_COL}{result_row}"
-        # result_cell = self._base_ws.acell(label)
-        # self._base_ws.update_cells([result_cell],
-        #                            value_input_option=ValueInputOption.USER_ENTERED.name)
+    def duplicate(self, sheetname: str) -> None:
+        self._base_ws.duplicate(self._base_ws.id, new_sheet_name=sheetname)
